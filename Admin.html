@@ -1,0 +1,464 @@
+<!DOCTYPE html>
+<html>
+<head>
+<base target="_top">
+<style>
+body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; margin: 0; padding: 20px; background: #F4F6F9; color: #333; }
+/* Added flex-wrap for mobile responsiveness */
+.header { display: flex; justify-content: space-between; align-items: center; background: #1F4E79; color: white; padding: 18px 24px; border-radius: 8px; margin-bottom: 20px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); flex-wrap: wrap; gap: 10px; }
+.controls { display: flex; gap: 15px; background: white; padding: 16px 20px; border-radius: 8px; margin-bottom: 20px; align-items: center; box-shadow: 0 2px 4px rgba(0,0,0,0.05); flex-wrap: wrap; }
+label { font-weight: bold; margin-right: 5px; }
+input[type="date"], select { padding: 8px 12px; border: 1px solid #ccc; border-radius: 6px; font-size: 14px; }
+/* Added overflow-x: auto to contain the table bleed */
+.roster-card { background: white; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); overflow-x: auto; -webkit-overflow-scrolling: touch; width: 100%; }
+/* Added min-width to force scrolling rather than squishing data */
+table { width: 100%; border-collapse: collapse; text-align: left; min-width: 1100px; }
+th { background: #f1f3f5; color: #495057; padding: 14px 16px; font-size: 13px; text-transform: uppercase; border-bottom: 2px solid #dee2e6; }
+td { padding: 14px 16px; border-bottom: 1px solid #e9ecef; vertical-align: middle; font-size: 14px; }
+.seat-badge { background: #1F4E79; color: white; font-weight: bold; padding: 4px 10px; border-radius: 4px; display: inline-block;}
+.exam-code { font-family: monospace; font-size: 15px; background: #eef2f7; color: #8B0000; padding: 4px 8px; border-radius: 4px; font-weight: bold;}
+.acc-text { font-size: 13px; color: #1F4E79; font-weight: 600; max-width: 180px; word-wrap: break-word; }
+.acc-none { color: #6c757d; font-weight: normal; font-style: italic; }
+.btn-start { background: #28a745; color: white; border: none; padding: 8px 14px; border-radius: 4px; cursor: pointer; font-weight: bold;}
+.btn-time { background: #17a2b8; color: white; border: none; padding: 4px 8px; border-radius: 4px; cursor: pointer; margin-right: 4px; font-weight: bold;}
+.btn-stop { background: #dc3545; color: white; border: none; padding: 5px 10px; border-radius: 4px; cursor: pointer; font-weight: bold;}
+.btn-resume { background: #ffc107; color: #212529; border: none; padding: 5px 10px; border-radius: 4px; cursor: pointer; font-weight: bold;}
+.btn-break { background: #6f42c1; color: white; border: none; padding: 4px 8px; border-radius: 4px; cursor: pointer; margin-right: 4px; font-weight: bold;}
+.btn-break:hover { background: #5a32a3; }
+.btn-break.active { background: #fd7e14; }
+.btn-break.active:hover { background: #e8590c; }
+.btn-reset { background: #6c757d; color: white; border: none; padding: 4px 6px; border-radius: 4px; cursor: pointer; margin-left: 4px; font-size: 11px; }
+.btn-reset:hover { background: #495057; }
+.timer-box { font-weight: bold; padding: 8px 10px; border-radius: 6px; display: inline-block; width: 170px; }
+.timer-running { background: #d4edda; color: #155724; border: 1px solid #c3e6cb; }
+.timer-warning { background: #fff3cd; color: #856404; border: 1px solid #ffeeba; }
+.timer-expired { background: #f8d7da; color: #721c24; border: 1px solid #f5c6cb; }
+.timer-stopping { background: #fff3cd; color: #856404; border: 1px dashed #ffeeba; }
+.timer-stopped { background: #e2e3e5; color: #383d41; border: 1px solid #d6d8db; }
+.timer-paused { background: #ffe8cc; color: #d9480f; border: 1px solid #ffd8a8; }
+select.status-select { padding: 6px; border-radius: 4px; font-weight: bold; }
+.status-Present { background-color: #d4edda; color: #155724; }
+.status-Late { background-color: #fff3cd; color: #856404; }
+.status-Absent { background-color: #f8d7da; color: #721c24; }
+.status-Pending { background-color: #e2e3e5; color: #383d41; }
+.comments-text { font-size: 13px; color: #4b5563; font-style: italic; max-width: 200px; word-wrap: break-word; }
+
+
+@media (max-width: 768px) {
+ body { padding: 10px; }
+ .controls { justify-content: space-between; }
+}
+</style>
+</head>
+<body>
+<div class="header">
+ <h2 style="margin: 0;">Example School Testing Centre - Proctor Dashboard</h2>
+ <span id="clock" style="font-size: 18px; font-weight: bold;"></span>
+</div>
+<div class="controls">
+ <div>
+   <label for="filterDate">Date:</label>
+   <input type="date" id="filterDate" onchange="updatePeriodDropdown(); loadBookings()">
+ </div>
+ <div>
+   <label for="filterPeriod">Period: </label>
+   <select id="filterPeriod" onchange="loadBookings()">
+     <option value="Early Start">Early Start</option>
+     <option value="1">Period 1</option>
+     <option value="2">Period 2</option>
+     <option value="3">Period 3</option>
+     <option value="4">Period 4</option>
+   </select>
+ </div>
+ <button onclick="loadBookings()" style="padding: 8px 16px; background: #1F4E79; color: white; border: none; border-radius: 4px; cursor: pointer; font-weight: bold;">Refresh Board</button>
+</div>
+<div class="roster-card">
+ <table>
+   <thead>
+     <tr>
+       <th>Seat</th>
+       <th>Student Name</th>
+       <th>Accommodations</th>
+       <th>Subject / Teacher</th>
+       <th>Safe Exam Browser Code</th>
+       <th>Comments / Instructions</th>
+       <th>Total Time</th>
+       <th>Live Timer & Actions</th>
+       <th>Attendance Status</th>
+     </tr>
+   </thead>
+   <tbody id="bookingsTable">
+     <tr><td colspan="9" style="text-align:center; padding: 40px; color: #6c757d; font-style: italic;">Loading...</td></tr>
+   </tbody>
+ </table>
+</div>
+
+
+<script>
+var activeTimers = {};
+var currentBookingsMap = {};
+var latestRequestToken = ""; // RPC Security Token to prevent race conditions
+
+
+document.addEventListener("DOMContentLoaded", function() {
+ var now = new Date();
+ var localDate = now.getFullYear() + '-' + String(now.getMonth() + 1).padStart(2, '0') + '-' + String(now.getDate()).padStart(2, '0');
+  document.getElementById('filterDate').value = localDate;
+ updatePeriodDropdown();
+ updateClock();
+ loadBookings();
+});
+
+
+setInterval(updateClock, 1000);
+setInterval(updateAllTimers, 1000);
+setInterval(syncDashboardSilent, 10000);
+
+
+function updatePeriodDropdown() {
+ var dateVal = document.getElementById('filterDate').value;
+ if (!dateVal) return;
+  var parts = dateVal.split('-');
+ var d = new Date(parts[0], parts[1] - 1, parts[2]);
+ var isWednesday = (d.getDay() === 3);
+ var select = document.getElementById('filterPeriod');
+ var currentSelection = select.value;
+  select.innerHTML = '';
+ if (isWednesday) select.innerHTML += '<option value="Early Start">Early Start</option>';
+ select.innerHTML += '<option value="1">Period 1</option>';
+ select.innerHTML += '<option value="2">Period 2</option>';
+ select.innerHTML += '<option value="3">Period 3</option>';
+ select.innerHTML += '<option value="4">Period 4</option>';
+  if (!isWednesday && currentSelection === "Early Start") select.value = "1";
+ else if (currentSelection) select.value = currentSelection;
+}
+
+
+function updateClock() {
+ document.getElementById('clock').innerText = new Date().toLocaleTimeString();
+}
+
+
+function loadBookings() {
+ var dateVal = document.getElementById('filterDate').value;
+ var periodVal = document.getElementById('filterPeriod').value;
+ if (!dateVal || !periodVal) return;
+  // Generate a unique token for this specific fetch request
+ var requestToken = dateVal + "_" + periodVal + "_" + new Date().getTime();
+ latestRequestToken = requestToken;
+  var tbody = document.getElementById('bookingsTable');
+ tbody.innerHTML = '<tr><td colspan="9" style="text-align:center; padding: 40px; color: #6c757d; font-style: italic;">Loading...</td></tr>';
+  google.script.run
+   .withSuccessHandler(function(results, userToken) {
+     // RACE CONDITION DEFENCE: If this response belongs to an old click, trash it.
+     if (userToken !== latestRequestToken) return;
+     renderBookings(results);
+   })
+   .withFailureHandler(function(err) { console.error("Data Fetch Error:", err); })
+   .withUserObject(requestToken)
+   .getAdminPeriodBookings(dateVal, periodVal, new Date().getTime());
+}
+
+
+function syncDashboardSilent() {
+ var dateVal = document.getElementById('filterDate').value;
+ var periodVal = document.getElementById('filterPeriod').value;
+ if (!dateVal || !periodVal) return;
+  var requestToken = dateVal + "_" + periodVal;
+  google.script.run
+   .withSuccessHandler(function(results, userToken) {
+     var currentDate = document.getElementById('filterDate').value;
+     var currentPeriod = document.getElementById('filterPeriod').value;
+    
+     // RACE CONDITION DEFENCE: Discard if the user moved to another day/period while waiting
+     if (userToken !== (currentDate + "_" + currentPeriod)) return;
+    
+     var tbody = document.getElementById('bookingsTable');
+     if (tbody.innerHTML.includes('Loading...')) return;
+    
+     var currentRows = tbody.querySelectorAll('tr[id^="row-"]').length;
+    
+     if (results.length !== currentRows) {
+       // HARD FAILSAFE: Prevent empty array wipe if dashboard currently has rows
+       if (results.length === 0 && currentRows > 0) return;
+      
+       renderBookings(results);
+       return;
+     }
+    
+     results.forEach(function(b) {
+       currentBookingsMap[b.uniqueId] = b;
+       var cell = document.getElementById('timer-cell-' + b.uniqueId);
+      
+       if (cell) {
+         if (b.actualStopTime && !cell.innerHTML.includes('Finished at')) {
+           cell.innerHTML = '<div class="timer-box timer-stopped">Finished at ' + b.actualStopTime + ' <button class="btn-reset" title="Reset Timer" onclick="resetStudentTimer(\'' + b.uniqueId + '\')">↺</button></div>';
+           delete activeTimers[b.uniqueId];
+         }
+         else if (b.timerData && !b.actualStopTime) {
+           var localStr = JSON.stringify(activeTimers[b.uniqueId]);
+           var remoteStr = JSON.stringify(b.timerData);
+           if (localStr !== remoteStr) {
+             activeTimers[b.uniqueId] = b.timerData;
+             localStorage.setItem('timer_' + b.date + '_' + b.uniqueId, remoteStr);
+             if (!document.getElementById('clock-' + b.uniqueId)) cell.innerHTML = getTimerHTML(b.uniqueId);
+           }
+         }
+         else if (!b.timerData && !b.actualStopTime && activeTimers[b.uniqueId]) {
+           delete activeTimers[b.uniqueId];
+           cell.innerHTML = '<button class="btn-start" onclick="startStudentTimer(\'' + b.uniqueId + '\', ' + b.durationMinutes + ')">Start Test</button>';
+         }
+       }
+      
+       var statusSelect = document.getElementById('status-' + b.uniqueId);
+       if (statusSelect && statusSelect.value !== b.attendance) {
+         statusSelect.value = b.attendance;
+         statusSelect.className = 'status-select status-' + b.attendance;
+       }
+     });
+   })
+   .withUserObject(requestToken)
+   .getAdminPeriodBookings(dateVal, periodVal, new Date().getTime());
+}
+
+
+function renderBookings(bookings) {
+ var tbody = document.getElementById('bookingsTable');
+ currentBookingsMap = {};
+  if (!bookings || bookings.length === 0) {
+   tbody.innerHTML = '<tr><td colspan="9" style="text-align:center; padding: 40px; color: #6c757d; font-style: italic;">No student bookings for this slot.</td></tr>';
+   return;
+ }
+  var html = '';
+ bookings.forEach(function(b) {
+   currentBookingsMap[b.uniqueId] = b;
+   var timerKey = 'timer_' + b.date + '_' + b.uniqueId;
+   var timerDataToUse = b.timerData;
+  
+   if (!timerDataToUse) {
+     var savedLocal = localStorage.getItem(timerKey);
+     if (savedLocal) { try { timerDataToUse = JSON.parse(savedLocal); } catch(e) {} }
+   }
+  
+   var commentsDisplay = b.comments ? b.comments : 'None';
+   var accClass = (b.accommodations === 'No Accommodations Listed') ? 'acc-text acc-none' : 'acc-text';
+  
+   html += '<tr id="row-' + b.uniqueId + '">';
+   html += '<td><span class="seat-badge">' + b.seatId + '</span></td>';
+   html += '<td><strong>' + b.studentName + '</strong></td>';
+   html += '<td><div class="' + accClass + '">' + b.accommodations + '</div></td>';
+   html += '<td>' + b.subject + '<br><small style="color:#666;">' + b.teacher + '</small></td>';
+   html += '<td><span class="exam-code">' + b.examCode + '</span></td>';
+   html += '<td><div class="comments-text">' + commentsDisplay + '</div></td>';
+   html += '<td>' + b.durationMinutes + ' mins</td>';
+  
+   html += '<td id="timer-cell-' + b.uniqueId + '">';
+   if (b.actualStopTime) {
+     html += '<div class="timer-box timer-stopped">Finished at ' + b.actualStopTime + ' <button class="btn-reset" title="Reset Timer" onclick="resetStudentTimer(\'' + b.uniqueId + '\')">↺</button></div>';
+   } else if (timerDataToUse) {
+     activeTimers[b.uniqueId] = timerDataToUse;
+     html += getTimerHTML(b.uniqueId);
+   } else {
+     html += '<button class="btn-start" onclick="startStudentTimer(\'' + b.uniqueId + '\', ' + b.durationMinutes + ')">Start Test</button>';
+   }
+   html += '</td>';
+  
+   html += '<td><select id="status-' + b.uniqueId + '" class="status-select status-' + b.attendance + '" onchange="changeStatus(\'' + b.uniqueId + '\', this.value)">';
+   ['Pending', 'Present', 'Late', 'Absent'].forEach(function(st) {
+     var sel = (b.attendance === st) ? 'selected' : '';
+     html += '<option value="' + st + '" ' + sel + '>' + st + '</option>';
+   });
+   html += '</select></td></tr>';
+ });
+  tbody.innerHTML = html;
+ updateAllTimers();
+}
+
+
+function startStudentTimer(uId, durationMinutes) {
+ var b = currentBookingsMap[uId] || {};
+ var selectedPeriod = document.getElementById('filterPeriod').value;
+ var selectedDate = document.getElementById('filterDate').value;
+ var now = new Date();
+  var localToday = now.getFullYear() + '-' + String(now.getMonth() + 1).padStart(2, '0') + '-' + String(now.getDate()).padStart(2, '0');
+ if (selectedDate === localToday && selectedPeriod !== "Early Start" && selectedPeriod !== "1") {
+   var curHour = now.getHours();
+   if (selectedPeriod === "2" && curHour < 10) {
+     if (!confirm("Period 2 has not started yet (currently " + now.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) + "). Are you sure you want to start " + b.studentName + "'s test now?")) return;
+   } else if ((selectedPeriod === "3" || selectedPeriod === "4") && curHour < 12) {
+     if (!confirm("This period has not started yet. Are you sure you want to start " + b.studentName + "'s test now?")) return;
+   }
+ }
+
+
+ var startTime = new Date();
+ var endTime = new Date(startTime.getTime() + durationMinutes * 60000);
+ var timerData = {
+   startTime: startTime.toISOString(), endTime: endTime.toISOString(), durationMinutes: durationMinutes,
+   status: 'running', hasRestBreak: !!b.hasRestBreak, pauseTime: null, stopWindowEnd: null, finalStopTimeStr: null
+ };
+  saveTimerState(uId, timerData, "Started Test (" + durationMinutes + " mins)");
+  var selectElem = document.getElementById('status-' + uId);
+ if (selectElem && selectElem.value === 'Pending') {
+   selectElem.value = 'Present';
+   changeStatus(uId, 'Present');
+ }
+ document.getElementById('timer-cell-' + uId).innerHTML = getTimerHTML(uId);
+ updateAllTimers();
+}
+
+
+function resetStudentTimer(uId) {
+ var b = currentBookingsMap[uId] || {};
+ if (!confirm("Reset timer for " + b.studentName + "? This will clear any running/finished timers and return the slot to 'Start Test'.")) return;
+  delete activeTimers[uId];
+ localStorage.removeItem('timer_' + document.getElementById('filterDate').value + '_' + uId);
+  google.script.run
+   .withSuccessHandler(function() { loadBookings(); })
+   .saveTimerStateBackend(b.date, b.seatId, b.studentName, "RESET", "Timer Reset");
+}
+
+
+function togglePauseRestBreak(uId) {
+ var timer = activeTimers[uId];
+ if (!timer) return;
+ var now = new Date();
+ var logMsg = "";
+  if (timer.status === 'running') {
+   timer.status = 'paused';
+   timer.pauseTime = now.toISOString();
+   logMsg = "Paused for Rest Break";
+ } else if (timer.status === 'paused') {
+   var pauseStart = new Date(timer.pauseTime).getTime();
+   timer.endTime = new Date(new Date(timer.endTime).getTime() + (now.getTime() - pauseStart)).toISOString();
+   timer.status = 'running';
+   timer.pauseTime = null;
+   logMsg = "Resumed from Rest Break";
+ }
+  saveTimerState(uId, timer, logMsg);
+ updateAllTimers();
+}
+
+
+function addExtraTime(uId, minutes) {
+ var timer = activeTimers[uId];
+ if (!timer || (timer.status !== 'running' && timer.status !== 'paused')) return;
+ timer.endTime = new Date(new Date(timer.endTime).getTime() + minutes * 60000).toISOString();
+ saveTimerState(uId, timer, "Added " + minutes + " Extra Minutes");
+ updateAllTimers();
+}
+
+
+function initiateStop(uId) {
+ var timer = activeTimers[uId];
+ if (!timer) return;
+ timer.status = 'stopping';
+ timer.stopWindowEnd = new Date(new Date().getTime() + 60000).toISOString();
+ timer.finalStopTimeStr = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+ saveTimerState(uId, timer, "Initiated Stop Sequence");
+ updateAllTimers();
+}
+
+
+function resumeTimer(uId) {
+ var timer = activeTimers[uId];
+ if (!timer) return;
+ timer.status = 'running';
+ timer.stopWindowEnd = null;
+ timer.finalStopTimeStr = null;
+ saveTimerState(uId, timer, "Cancelled Stop Sequence");
+ updateAllTimers();
+}
+
+
+function finalizeStop(uId) {
+ var timer = activeTimers[uId];
+ var b = currentBookingsMap[uId] || {};
+ if (!timer) return;
+ timer.status = 'stopped';
+ saveTimerState(uId, timer, "Test Stopped & Finalized");
+  var cell = document.getElementById('timer-cell-' + uId);
+ if (cell) cell.innerHTML = '<div class="timer-box timer-stopped">Finished at ' + timer.finalStopTimeStr + ' <button class="btn-reset" title="Reset Timer" onclick="resetStudentTimer(\'' + uId + '\')">↺</button></div>';
+  if (b.date && b.seatId && b.studentName) google.script.run.recordTestStopTime(b.date, b.seatId, b.studentName, timer.finalStopTimeStr);
+}
+
+
+function saveTimerState(uId, timerData, actionLogMsg) {
+ var b = currentBookingsMap[uId] || {};
+ var timerDataStr = JSON.stringify(timerData);
+ localStorage.setItem('timer_' + document.getElementById('filterDate').value + '_' + uId, timerDataStr);
+ activeTimers[uId] = timerData;
+  if (b.date && b.seatId && b.studentName) {
+   google.script.run
+     .withFailureHandler(function(err) { console.error('Sync failed:', err.message); })
+     .saveTimerStateBackend(b.date, b.seatId, b.studentName, timerDataStr, actionLogMsg);
+ }
+}
+
+
+function getTimerHTML(uId) {
+ return '<div id="box-' + uId + '" class="timer-box timer-running"><div id="clock-' + uId + '">--:--</div>' +
+        '<small id="endtime-' + uId + '" style="font-weight:normal; display:block;"></small>' +
+        '<div id="actions-' + uId + '" style="margin-top: 5px;"></div></div>';
+}
+
+
+function updateAllTimers() {
+ var now = new Date().getTime();
+ Object.keys(activeTimers).forEach(function(uId) {
+   var timer = activeTimers[uId];
+   var b = currentBookingsMap[uId] || {};
+  
+   var clockElem = document.getElementById('clock-' + uId);
+   var endElem = document.getElementById('endtime-' + uId);
+   var boxElem = document.getElementById('box-' + uId);
+   var actionsElem = document.getElementById('actions-' + uId);
+  
+   if (!clockElem || timer.status === 'stopped') return;
+  
+   if (timer.status === 'stopping') {
+     var remainingSecs = Math.ceil((new Date(timer.stopWindowEnd).getTime() - now) / 1000);
+     if (remainingSecs <= 0) finalizeStop(uId);
+     else {
+       boxElem.className = 'timer-box timer-stopping';
+       clockElem.innerText = 'Stopping...'; endElem.innerText = 'Locks in ' + remainingSecs + 's';
+       actionsElem.innerHTML = '<button class="btn-resume" onclick="resumeTimer(\'' + uId + '\')">Resume Test</button>';
+     }
+     return;
+   }
+  
+   if (timer.status === 'paused') {
+     boxElem.className = 'timer-box timer-paused';
+     clockElem.innerText = 'REST BREAK'; endElem.innerText = 'Clock Paused';
+     var breakBtn = (timer.hasRestBreak || b.hasRestBreak) ? '<button class="btn-break active" onclick="togglePauseRestBreak(\'' + uId + '\')">▶ Resume</button>' : '';
+     actionsElem.innerHTML = breakBtn + '<button class="btn-stop" onclick="initiateStop(\'' + uId + '\')">Stop</button><button class="btn-reset" title="Reset Timer" onclick="resetStudentTimer(\'' + uId + '\')">↺</button>';
+     return;
+   }
+  
+   var diff = new Date(timer.endTime).getTime() - now;
+   endElem.innerText = 'Ends at ' + new Date(timer.endTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  
+   if (diff <= 0) {
+     clockElem.innerText = '00:00 EXPIRED'; boxElem.className = 'timer-box timer-expired';
+     actionsElem.innerHTML = '<button class="btn-stop" onclick="initiateStop(\'' + uId + '\')">Stop Test</button><button class="btn-reset" title="Reset Timer" onclick="resetStudentTimer(\'' + uId + '\')">↺</button>';
+   } else {
+     var hrs = Math.floor(diff / 3600000), mins = Math.floor((diff % 3600000) / 60000), secs = Math.floor((diff % 60000) / 1000);
+     clockElem.innerText = (hrs > 0 ? hrs + 'h ' : '') + (mins < 10 ? '0' : '') + mins + 'm ' + (secs < 10 ? '0' : '') + secs + 's';
+     boxElem.className = (diff < 300000) ? 'timer-box timer-warning' : 'timer-box timer-running';
+    
+     var breakBtn = (timer.hasRestBreak || b.hasRestBreak) ? '<button class="btn-break" onclick="togglePauseRestBreak(\'' + uId + '\')">⏸ Break</button>' : '';
+     actionsElem.innerHTML = '<button class="btn-time" onclick="addExtraTime(\'' + uId + '\', 5)">+5m</button><button class="btn-time" onclick="addExtraTime(\'' + uId + '\', 10)">+10m</button>' +
+                             breakBtn + '<button class="btn-stop" onclick="initiateStop(\'' + uId + '\')">Stop</button><button class="btn-reset" title="Reset Timer" onclick="resetStudentTimer(\'' + uId + '\')">↺</button>';
+   }
+ });
+}
+
+
+function changeStatus(uId, status) {
+ var b = currentBookingsMap[uId] || {};
+ document.getElementById('status-' + uId).className = 'status-select status-' + status;
+ if (b.date && b.seatId && b.studentName) google.script.run.updateAttendanceStatus(b.date, b.seatId, b.studentName, status);
+}
+</script>
+</body>
+</html>
